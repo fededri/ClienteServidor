@@ -12,7 +12,7 @@
 #include <signal.h>
 
 #define IP "127.0.0.1"
-#define PORT "8500"
+#define PORT "8000"
 #define MAXDATASIZE 1024
 
 int main()
@@ -21,36 +21,30 @@ int main()
 struct addrinfo hints, * serverInfo;
 int serverSocket;
 char message[MAXDATASIZE];
-int resultadoOp;
+int i;
 
-printf("Iniciando Cliente\n");
-memset(&hints,0,sizeof(hints));
-hints.ai_family = AF_UNSPEC;
+memset(&hints,0,sizeof hints);
+hints.ai_family = AF_INET;
 hints.ai_socktype = SOCK_STREAM;
 
-
 getaddrinfo(IP,PORT,&hints,&serverInfo);
+
 serverSocket = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
 
-
-resultadoOp = connect(serverSocket,serverInfo->ai_addr,serverInfo->ai_addrlen);
+connect(serverSocket,serverInfo->ai_addr,serverInfo->ai_addrlen);
 freeaddrinfo(serverInfo);
 
-if ( resultadoOp!=-1){
-	printf("Conectado al servidor. Ya puede enviar mensajes, escriba 'exit' para salir\n");
+if ((i = recv(serverSocket,(void *) message, MAXDATASIZE, 0)!=0)){
+	printf ("%s",message);
 }
 
-int enviar = 1;
-while(enviar){
+
+
+do {
 fgets(message,MAXDATASIZE,stdin);
-if(!strcmp(message,"exit\n")) enviar = 0;
-if (enviar) send(serverSocket, message, strlen(message)+1,0);
-
-}
+send(serverSocket,(void *) message, MAXDATASIZE,0 );
+} while ((i = strcmp(message,"exit\n"))!=0);
 
 close(serverSocket);
-return 0;
-
-
-
+	return 0;
 }
