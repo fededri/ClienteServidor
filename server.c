@@ -6,7 +6,7 @@
  */
 /*
  * server.c
- * Servidor con Multiples Clientes
+ * *****************************Servidor CON MULTIPLES CONEXIONES **************
  *  Created on: 01/04/2015
  *      Author: federico
  */
@@ -104,7 +104,7 @@ if( FD_ISSET(listenerSocket,&read_set)) { // hay una conexion entrante
  socketCliente = accept(listenerSocket, (struct sockaddr*) &addr, &addrlen);
 
  if(socketCliente>0){
- 	printf("Se conecto un cliente con socket %d",socketCliente);
+ 	printf("Se conecto un cliente con socket %d\n",socketCliente);
  	send(socketCliente,"Bienvenido, escriba 'exit'para salir\n",MAXDATASIZE,0);
   					}else {
   						printf("Hubo un error en la conexion\n");
