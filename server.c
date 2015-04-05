@@ -6,75 +6,149 @@
  */
 /*
  * server.c
- *
+ * Servidor con Multiples Clientes
  *  Created on: 01/04/2015
  *      Author: federico
  */
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <netdb.h>
-#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 #define BACKLOG 10
-#define PORT "8500"
+#define PORT "8000"
 #define MAXDATASIZE 1024
-#define MAXCLIENTS 10
+#define MAXCLIENTS 5
 
-int main(){
+
+void mostrarClientes(int clientes[]);
+
+
+int main()
+{
 struct addrinfo hints, *serverInfo;
-int resultadoOp;
-int listenningSocket;
+int listenerSocket, resultadoSelect, maxSocket;
+fd_set read_set;
+int clientes[MAXCLIENTS], socketCliente;
+struct sockaddr_in addr;
+char message[MAXDATASIZE];
 
-memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;		// No importa si uso IPv4 o IPv6
-	hints.ai_flags = AI_PASSIVE;		// Asigna el address del localhost: 127.0.0.1
-	hints.ai_socktype = SOCK_STREAM;	
 
-printf("Iniciando Servidor...\n");
+
+//inicializo el array de clientes
+int i;
+for(i=0;i<MAXCLIENTS;i++){
+	clientes[i] = 0;
+}
+//*******************
+
+
+memset(&hints,0, sizeof(hints));
+hints.ai_family = AF_UNSPEC;
+hints.ai_socktype = SOCK_STREAM;
+hints.ai_flags = AI_PASSIVE;
 
 getaddrinfo(NULL,PORT,&hints,&serverInfo);
-listenningSocket = socket(serverInfo->ai_family,serverInfo->ai_socktype,serverInfo->ai_protocol);
 
+listenerSocket = socket(serverInfo->ai_family,serverInfo->ai_socktype,serverInfo->ai_protocol);
 
-printf("Socket escuchando numero %d\n",listenningSocket);
+printf("Escuchando desde el socket %d\n",listenerSocket);
 
-bind(listenningSocket,serverInfo->ai_addr,serverInfo->ai_addrlen);
+bind(listenerSocket,serverInfo->ai_addr,serverInfo->ai_addrlen);
+
+puts("Socket bindeado\n");
+
 freeaddrinfo(serverInfo);
+listen(listenerSocket,BACKLOG);
 
-printf("Socket bindeado\n");
-
-printf("escuchando...\n");
-listen(listenningSocket,BACKLOG);
-
-struct sockaddr_in addr;
+maxSocket = listenerSocket;
 socklen_t addrlen = sizeof(addr);
 
-int socketCliente = accept(listenningSocket, (struct sockaddr * ) &addr, &addrlen);
-char package[MAXDATASIZE];
-int status =1;
+while(1)
+{ // MAIN WHILE
+FD_ZERO(&read_set);
+FD_SET(listenerSocket,&read_set);
 
-if(socketCliente!=-1){
-	printf("Cliente conectado como socket %d",socketCliente);
+//agregado los sockets de clientes al set
+for(i=0;i<MAXCLIENTS;i++){
+	if(clientes[i]>0){
+		FD_SET(clientes[i],&read_set);
+		
+	} 
+	if(clientes[i]>maxSocket) maxSocket = clientes[i];
+	
 }
-else {
-	printf( "Error al conectar");
+//****************
+
+
+
+resultadoSelect = select(maxSocket +1, &read_set,NULL,NULL,NULL);
+
+
+
+if(resultadoSelect==-1) {
+	printf("fallo el select\n");
+	break;
 }
 
-while(status!=0){
-status = recv(socketCliente, (void*) package, MAXDATASIZE,0);
-if(status!=0) printf("%s",package);
+
+if( FD_ISSET(listenerSocket,&read_set)) { // hay una conexion entrante
+ socketCliente = accept(listenerSocket, (struct sockaddr*) &addr, &addrlen);
+
+ if(socketCliente>0){
+ 	printf("Se conecto un cliente con socket %d",socketCliente);
+ 	send(socketCliente,"Bienvenido, escriba 'exit'para salir\n",MAXDATASIZE,0);
+  					}else {
+  						printf("Hubo un error en la conexion\n");
+  						break;
+ 							}	
+
+ for(i=0;i<MAXCLIENTS;i++){
+ 	if(clientes[i]==0){
+ 		clientes[i] = socketCliente;
+ 	
+ 		break;
+ 	} 
+
+ }
+
+} //fin manejo de conexion entrante
+int statusRecv;
+for(i=0;i<MAXCLIENTS;i++){
+	if(FD_ISSET(clientes[i],&read_set)){ // hay un mensaje pendiente
+		statusRecv = recv(clientes[i], (void *) message, MAXDATASIZE, 0);
+		if(statusRecv==0 || !strcmp(message,"exit") ) // cerro conexion o quiere salir
+		{
+			printf("Cliente numero %d con socket %d desconectado\n",i,clientes[i]);
+			close(clientes[i]);
+			clientes[i]=0;			
+		} else { // imprimo mensaje
+			printf("%s",message);
+		}
+
+	}
 }
 
-puts("Cerrando Servidor\n");
-close(socketCliente);
-close(listenningSocket);
 
 
+}
 	return 0;
 }
 
 
 
+void mostrarClientes(int clientes[]){
+int i =0;
+for(;i<MAXCLIENTS;i++){
+	printf("El cliente %d contiene el socket %d\n",i,clientes[i]);
+}
+
+}
